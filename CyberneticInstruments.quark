@@ -3,7 +3,7 @@
   summary: "Easy to use but hard to control instruments and interfaces",
   version: "0.001",
   schelp: "CyberneticInstruments.schelp",
-  dependencies: ,
+  dependencies: ["Influx", "Sleet", "Modality"],
   license: "GNU GPL v3.0",
   copyright: "madskjeldgaard",
   ext_dependency: "",
