@@ -1,5 +1,4 @@
-/****
-
+/*
  _                        __                
 | |___      _____        / _| __ _  ___ ___ 
 | __\ \ /\ / / _ \ _____| |_ / _` |/ __/ _ \
@@ -9,7 +8,7 @@
 
 a Schizo incestoid game pad instrument
 
-****/
+*/
 (
 	~ff = ~ff ?? ();
 
@@ -17,11 +16,17 @@ a Schizo incestoid game pad instrument
 		self.mktl = MKtl('gamepad1', "shanwan_ps3");
 		self.sleet = self.sleet ?? Sleet.new(self.numVoiceChans);
 
+		self.buffer = Buffer.alloc(s, s.sampleRate * 16,  numChannels: self.numVoiceChans);
+
 		// Map outputs of joystick to x/y of Influx
 		self.mapToFlux.value;
 
 		// Make the two voices
 		self.setupVoices.value;
+
+		// Add output processing to Influx
+		self.makeEnvs.value;
+		self.addProcessingToInfluxes.value;
 
 		// Add named shortcuts for elements in the mktl
 		self.renameElements.value;
@@ -39,7 +44,7 @@ a Schizo incestoid game pad instrument
 		\in,
 		\vca,
 		\volume, \gain, \inGain, \ingain,
-		\wet100, \wet101, \wet102, \wet103 // vca, pan, volume, leakdc 
+		\wet100, \wet101, \wet102, \wet103, \wet104 // vca, pan, volume, leakdc 
 	];
 
 	~ff.mapToFlux = {|self|
@@ -57,6 +62,36 @@ a Schizo incestoid game pad instrument
 				self.voices[\right].influx.set(axis, val)
 			};
 
+		}
+	};
+
+	// From alberto de campo's Influx examples
+	~ff.fluxEnv = { |q, numSteps = 8, rand = 1.0, maxCurve = 3.0|
+		var numTimes = numSteps.max(2).round(2).asInteger;
+		var levels = (numTimes + 1).collect { |i| 1.0.rand2.blend( (i / numTimes).unibi, 1-rand) };
+		// bit boring to have them regular
+		var times = (1/numTimes).dup(numTimes);
+		var curves = numTimes.collect { maxCurve.rand2 };
+		// put in fixed values
+		levels[0] = -1;
+		levels[numTimes div: 2] = 0;
+		levels[numTimes] = 1;
+		Env(levels, times, curves);
+	};
+
+	~ff.makeEnvs = {|self|
+		self.voices.do{|voice|
+			var numouts = voice.influx.outNames.size;
+
+			voice[\envs] = numouts.collect{ self.fluxEnv } 
+		}
+	};
+
+	~ff.addProcessingToInfluxes = {|self|
+		self.voices.do{|voice|
+			voice.influx.addProc(\base, { |val, i|
+				voice[\envs][i].at(val.tanh.biuni).biuni;
+			})
 		}
 	};
 
@@ -107,7 +142,7 @@ a Schizo incestoid game pad instrument
 			self.voices[voxname] = ();
 
 			// Influx for this voice
-			self.voices[voxname].influx = Influx.new(2, 16);
+			self.voices[voxname].influx = Influx.new(2, 128);
 
 			// Setup the basic nodeproxy
 			thisvoice = Ndef(ndefname).clear;
@@ -117,11 +152,13 @@ a Schizo incestoid game pad instrument
 			thisvoice.source = self.soundProcesses[\sources][\default];
 
 			// Add a few nice basic effects
-			thisvoice[4] = \filter -> self.sleet.get('chorus');
-			thisvoice[1] = \filter -> self.sleet.get('freeverb');
+			thisvoice[1] = \filter -> self.sleet.get('chorus');
 			thisvoice[2] = \filter -> self.sleet.get('pitchshift');
 			thisvoice[3] = \filter -> self.sleet.get('freqshift');
-			// thisvoice[4] = \filter -> self.sleet.get('filter');
+			thisvoice[4] = \filter -> self.sleet.get('delay');
+			thisvoice[5] = \filter -> self.sleet.modules[\spectral].choose;
+			thisvoice[6] = \filter -> self.sleet.get('grainfb');
+			thisvoice[7] = \filter -> self.sleet.get('timemachine_ext');
 			// thisvoice[5] = \filter -> self.sleet.get('scramble');
 			// thisvoice[7] = \filter -> self.sleet.get('triode');
 			// thisvoice[8] = \filter -> self.sleet.get('ring');
@@ -131,14 +168,14 @@ a Schizo incestoid game pad instrument
 			thisvoice[101] = \filter -> self.soundProcesses[\pan];
 			thisvoice[102] = \filter -> self.soundProcesses[\volume];
 			thisvoice[103] = \filter -> self.soundProcesses[\leak];
+			thisvoice[105] = \filter -> self.soundProcesses[\limiter];
 
-
-			thisvoice.set(\pan, 1.rand2);
+			thisvoice.set(\pan, 1.rand, \buffer, self.buffer.bufnum);
 
 			// Finally attach the voice to Influx
 			self.voices[voxname].influx.attachMapped(
 				thisvoice, 
-				paramNames: thisvoice.controlKeys(except: ~ff.ignoreParams)
+				paramNames: thisvoice.controlKeys(except: self.ignoreParams)
 			);
 
 			self.voices[voxname].ndef = thisvoice;
@@ -160,7 +197,7 @@ a Schizo incestoid game pad instrument
 		sources: (
 			default: {|freq=444, detune=1, width=0.5, lfofreq=1, noise=0.5| 
 				var sig = VarSaw.ar(
-					freq: [freq, freq-detune]*LFNoise2.kr(freq/10*noise).linlin(-1.0,1.0,1.0,1.1), 
+					freq: ([freq, freq-detune]*LFSaw.kr(freq/10*noise).linlin(-1.0,1.0,1.0,1.1)).wrap(50,500), 
 					iphase: 0, 
 					width: width * LFSaw.kr(lfofreq).linlin(-1.0,1.0,0.0,1.0)
 				);
@@ -168,19 +205,28 @@ a Schizo incestoid game pad instrument
 				sig
 			},
 		),
-		vca: {|in, vca=0| 
-			in*EnvGen.kr(Env.asr(0.001,1.0,0.01), vca)
+		vca: {|in, vca=0, vcarelease=0.5| 
+			in*EnvGen.kr(Env.asr(0.001,1.0,vcarelease), vca)
 		},
 		pan: {|in, pan=0| 
-			Balance2.ar(in[0], in[1], pan)
+			Balance2.ar(in[0], in[1], pan.linlin(0.0,1.0,-1.0,1.0))
 		},
-		volume: {|in, volume=0.25|
+		volume: {|in, volume=0.75|
 			in * volume
 		},
 		leak: {|in|
 			LeakDC.ar(in,  coef: 0.995,  mul: 1.0,  add: 0.0)
+		},
+		limiter: {|in|
+			in.tanh
 		}
 	);
 
 	~ff.init.value;
 )
+
+s.meter;
+
+z = Sleet.new
+
+z.postInfo
