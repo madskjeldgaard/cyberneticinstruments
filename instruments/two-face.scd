@@ -226,9 +226,3 @@ a schizoincestoid game pad instrument
 
 	~ff.init.value;
 )
-
-s.meter;
-
-z = Sleet.new
-
-z.postInfo
