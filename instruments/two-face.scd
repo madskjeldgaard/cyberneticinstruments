@@ -6,7 +6,7 @@
  \__| \_/\_/ \___/      |_|  \__,_|\___\___|
                                             
 
-a Schizo incestoid game pad instrument
+a schizoincestoid game pad instrument
 
 */
 (
@@ -66,7 +66,7 @@ a Schizo incestoid game pad instrument
 	};
 
 	// From alberto de campo's Influx examples
-	~ff.fluxEnv = { |q, numSteps = 8, rand = 1.0, maxCurve = 3.0|
+	~ff.fluxEnv = { |q, numSteps = 7, rand = 1.0, maxCurve = 3.0|
 		var numTimes = numSteps.max(2).round(2).asInteger;
 		var levels = (numTimes + 1).collect { |i| 1.0.rand2.blend( (i / numTimes).unibi, 1-rand) };
 		// bit boring to have them regular
@@ -152,13 +152,15 @@ a Schizo incestoid game pad instrument
 			thisvoice.source = self.soundProcesses[\sources][\default];
 
 			// Add a few nice basic effects
-			thisvoice[1] = \filter -> self.sleet.get('chorus');
+			// thisvoice[1] = \filter -> self.sleet.get('chorus');
 			thisvoice[2] = \filter -> self.sleet.get('pitchshift');
 			thisvoice[3] = \filter -> self.sleet.get('freqshift');
 			thisvoice[4] = \filter -> self.sleet.get('delay');
 			thisvoice[5] = \filter -> self.sleet.modules[\spectral].choose;
-			thisvoice[6] = \filter -> self.sleet.get('grainfb');
-			thisvoice[7] = \filter -> self.sleet.get('timemachine_ext');
+			thisvoice[6] = \filter -> self.sleet.get('octer');
+			// thisvoice[7] = \filter -> self.sleet.get('waveloss');
+
+			thisvoice[8] = \filter -> self.sleet.get('timemachine_ext');
 			// thisvoice[5] = \filter -> self.sleet.get('scramble');
 			// thisvoice[7] = \filter -> self.sleet.get('triode');
 			// thisvoice[8] = \filter -> self.sleet.get('ring');
