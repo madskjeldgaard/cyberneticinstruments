@@ -16,6 +16,8 @@ TODO:
 - Master fx (controlled by the compass?)
 - Kinetic feedback via vibration?
 - A way to switch everything into "persistence mode"
+- 4 different kinds of patterns
+- Connect patterns to controller/influx
 
 */
 
@@ -68,24 +70,6 @@ TODO:
 		\volume, \gain, \inGain, \ingain,
 		\wet100, \wet101, \wet102, \wet103, \wet104 // vca, pan, volume, leakdc 
 	];
-
-	~ff.mapToFlux = {|self|
-
-		['x', 'y'].do{|axis|
-			// Left
-			self.mktl.elAt('joy','l', axis).action = {|el|
-				var val = el.value.unibi; // Bipolar out for Influx 
-				self.voices[\left].influx.set(axis, val)
-			};
-
-			// Right
-			self.mktl.elAt('joy','r', axis).action = {|el|
-				var val = el.value.unibi; // Bipolar out for Influx 
-				self.voices[\right].influx.set(axis, val)
-			};
-
-		}
-	};
 
 	~ff.makePatterns = {|self|
 		var pats = self.numTimeStretchers.collect{|stretchnum|
@@ -145,11 +129,36 @@ TODO:
 	~ff.actions = {|self|
 
 		(
-			openVCAL: {|el| self.voices[\left].ndef.set(\vca, el.value) },
-			openVCAR: {|el| self.voices[\right].ndef.set(\vca, el.value) },
+			setfluxlx: {|el|
+				var val = el.value.unibi; // Bipolar out for Influx 
+				self.voices[\left].influx.set('x', val)
+			},
+			setfluxly: {|el|
+				var val = el.value.unibi; // Bipolar out for Influx 
+				self.voices[\left].influx.set('y', val)
+			},
+			setfluxrx: {|el|
+				var val = el.value.unibi; // Bipolar out for Influx 
+				self.voices[\right].influx.set('x', val)
+			},
+			setfluxry: {|el|
+				var val = el.value.unibi; // Bipolar out for Influx 
+				self.voices[\right].influx.set('y', val)
+			},
 
-			nextSoundL: {|el| "Next sound for left voice".postln },
-			nextSoundR: {|el| "Next sound for right voice".postln },
+			openVCAL: {|el| 
+				self.voices[\left].ndef.set(\vca, el.value) 
+			},
+			openVCAR: {|el| 
+				self.voices[\right].ndef.set(\vca, el.value) 
+			},
+
+			nextSoundL: {|el| 
+				"Next sound for left voice".postln 
+			},
+			nextSoundR: {|el| 
+				"Next sound for right voice".postln 
+			},
 			prevSoundL: {|el| },
 			prevSoundR: {|el| },
 
@@ -226,7 +235,12 @@ TODO:
 	~ff.renameElements = {|self|
 
 		// If PS3 controller
-		if(self.mktl.device.name == 'hid_1_ps3_pc_wired_gamepad',{
+		if(self.mktl.device.name == 'hid_1_ps3_pc_wired_gamepad', {
+			self.mktl.addNamed(\joyleftx, self.mktl.elAt('joy', 'l', 'x'));
+			self.mktl.addNamed(\joylefty, self.mktl.elAt('joy', 'l', 'y'));
+			self.mktl.addNamed(\joyrightx, self.mktl.elAt('joy', 'r', 'x'));
+			self.mktl.addNamed(\joyrighty, self.mktl.elAt('joy', 'r', 'y'));
+
 			self.mktl.addNamed(\a, self.mktl.elAt('bt', 'a'));
 			self.mktl.addNamed(\b, self.mktl.elAt('bt', 'b'));
 			self.mktl.addNamed(\x, self.mktl.elAt('bt', 'x'));
@@ -253,7 +267,13 @@ TODO:
 			\b: \togglePat1,
 			\x: \togglePat2,
 			\y: \togglePat3,
-			
+
+			\joyleftx: \setfluxlx,
+			\joylefty: \setfluxly,
+
+			\joyrightx: \setfluxrx,
+			\joyrighty: \setfluxry,
+
 			\lefthat: \nextSoundL,
 			\righthat: \nextSoundR,
 
@@ -368,5 +388,4 @@ TODO:
 	);
 
 	s.waitForBoot{ ~ff.init.value };
-
 )
