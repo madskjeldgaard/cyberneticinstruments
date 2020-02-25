@@ -8,15 +8,34 @@
 
 a schizoincestoid game pad instrument
 
+
+TODO:
+- Selectable sound sources
+- Selectable fx patches (with Influx remapping)
+- External control? IE. Sending data from these Influx to other things like the modular?
+- Master fx (controlled by the compass?)
+- Kinetic feedback via vibration?
+- A way to switch everything into "persistence mode"
+
 */
+
 (
 	~ff = ~ff ?? ();
 
 	~ff.init = {|self|
+
+		// Settings
+		self.numTimeStretchers = 4;
+		self.numVoiceChans = 2; 
+		self.bufferDur = 16; 
+
+		// Dependencies
 		self.mktl = MKtl('gamepad1', "shanwan_ps3");
 		self.sleet = self.sleet ?? Sleet.new(self.numVoiceChans);
+		self.p = Particular.new(self.numVoiceChans);
 
-		self.buffer = Buffer.alloc(s, s.sampleRate * 16,  numChannels: self.numVoiceChans);
+		// The main buffer
+		self.buffer = Buffer.alloc(s, s.sampleRate * self.bufferDur,  numChannels: self.numVoiceChans);
 
 		// Map outputs of joystick to x/y of Influx
 		self.mapToFlux.value;
@@ -31,6 +50,9 @@ a schizoincestoid game pad instrument
 		// Add named shortcuts for elements in the mktl
 		self.renameElements.value;
 
+		// Make time stretch patterns
+		self.makePatterns.value;
+
 		// Map using preset 1
 		self.mappings['preset1'].keysValuesDo{|el, actionName|
 			"Mapping % to %".format(el, actionName).postln;
@@ -38,11 +60,11 @@ a schizoincestoid game pad instrument
 		};
 	};
 
-	~ff.numVoiceChans = 2; 
 
 	~ff.ignoreParams = [
 		\in,
 		\vca,
+		\record,
 		\volume, \gain, \inGain, \ingain,
 		\wet100, \wet101, \wet102, \wet103, \wet104 // vca, pan, volume, leakdc 
 	];
@@ -63,6 +85,31 @@ a schizoincestoid game pad instrument
 			};
 
 		}
+	};
+
+	~ff.makePatterns = {|self|
+		var pats = self.numTimeStretchers.collect{|stretchnum|
+			var name = "twoface_ts%".format(stretchnum).asSymbol; 
+
+			Pdef(name,
+				Pbind(
+					\instrument, self.p.def("hamm", "buf2"),
+					\buffer, self.buffer,
+					\timestretch, 3 * (stretchnum+1),
+					\wobble, 0.5,
+					\overlaps, 4, // Overlap between grains
+					\bufdur, Pkey(\timestretch) * Pfunc({|ev| ev[\buffer].duration}),
+					\start, Pwhite(0.99,1.0) * Pseg({[0, 1].scramble}, Pkey(\bufdur), \lin, inf), // Buffer pointer
+					\freq, 0.70 * Pwhite(0.9,1.0), // Playback rate
+					\dur, 0.001 + (stretchnum/100) * Pbrown(1,1+Pkey(\wobble), 0.001), // Duration of each sound event
+					\sustain, Pkey(\overlaps) * Pkey(\dur),
+					\amp, 0.125,
+					\pan, Pkey(\start) // Pan follows buffer pointer
+				)
+			)
+		};
+
+		self.pats = pats;
 	};
 
 	// From alberto de campo's Influx examples
@@ -101,37 +148,128 @@ a schizoincestoid game pad instrument
 			openVCAL: {|el| self.voices[\left].ndef.set(\vca, el.value) },
 			openVCAR: {|el| self.voices[\right].ndef.set(\vca, el.value) },
 
-			nextSoundL: {|el| },
-			nextSoundR: {|el| },
+			nextSoundL: {|el| "Next sound for left voice".postln },
+			nextSoundR: {|el| "Next sound for right voice".postln },
 			prevSoundL: {|el| },
 			prevSoundR: {|el| },
 
-			randWeightL: {|el| self.voices[\left].influx.rand },
-			randWeightR: {|el| self.voices[\right].influx.rand },
+			triggerRecL: {|el| self.voices[\left].ndef.set(\record, el.value)},
+			triggerRecR: {|el| self.voices[\right].ndef.set(\record, el.value)},
+
+			randWeightL: {|el| "Randomizing weights for left".postln; self.voices[\left].influx.rand },
+			randWeightR: {|el| "Randomizing weights for right".postln; self.voices[\right].influx.rand },
+
+			togglePat0: {|el| 
+				var patnum=0;
+
+				if(el.value == 1.0, { 
+
+					if(self.pats[patnum].isPlaying,{
+						"Stopping pat %".format(patnum).postln;
+						self.pats[patnum].stop
+					}, {
+						"Playing pat %".format(patnum).postln;
+						self.pats[patnum].play
+					})
+
+				})
+			},
+			togglePat1: {|el| 
+				var patnum=1;
+
+				if(el.value == 1.0, { 
+
+					if(self.pats[patnum].isPlaying,{
+						"Stopping pat %".format(patnum).postln;
+						self.pats[patnum].stop
+					}, {
+						"Playing pat %".format(patnum).postln;
+						self.pats[patnum].play
+					})
+
+				})
+			},
+			togglePat2: {|el| 
+				var patnum=2;
+
+				if(el.value == 1.0, { 
+
+					if(self.pats[patnum].isPlaying,{
+						"Stopping pat %".format(patnum).postln;
+						self.pats[patnum].stop
+					}, {
+						"Playing pat %".format(patnum).postln;
+						self.pats[patnum].play
+					})
+
+				})
+			},
+			togglePat3: {|el| 
+				var patnum=3;
+
+				if(el.value == 1.0, { 
+
+					if(self.pats[patnum].isPlaying,{
+						"Stopping pat %".format(patnum).postln;
+						self.pats[patnum].stop
+					}, {
+						"Playing pat %".format(patnum).postln;
+						self.pats[patnum].play
+					})
+
+				})
+			},
 
 		)
 	};
 
 	~ff.renameElements = {|self|
-		self.mktl.addNamed(\l1, self.mktl.elAt('bt', 'l1'));
-		self.mktl.addNamed(\l2, self.mktl.elAt('bt', 'l2'));
 
-		self.mktl.addNamed(\r1, self.mktl.elAt('bt', 'r1'));
-		self.mktl.addNamed(\r2, self.mktl.elAt('bt', 'r2'));
+		// If PS3 controller
+		if(self.mktl.device.name == 'hid_1_ps3_pc_wired_gamepad',{
+			self.mktl.addNamed(\a, self.mktl.elAt('bt', 'a'));
+			self.mktl.addNamed(\b, self.mktl.elAt('bt', 'b'));
+			self.mktl.addNamed(\x, self.mktl.elAt('bt', 'x'));
+			self.mktl.addNamed(\y, self.mktl.elAt('bt', 'y'));
 
+			self.mktl.addNamed(\lefthat, self.mktl.elAt('bt', 'hat_l'));
+			self.mktl.addNamed(\righthat, self.mktl.elAt('bt', 'hat_r'));
+
+			self.mktl.addNamed(\l1, self.mktl.elAt('bt', 'l1'));
+			self.mktl.addNamed(\l2, self.mktl.elAt('bt', 'l2'));
+
+			self.mktl.addNamed(\r1, self.mktl.elAt('bt', 'r1'));
+			self.mktl.addNamed(\r2, self.mktl.elAt('bt', 'r2'));
+
+			self.mktl.addNamed(\select, self.mktl.elAt('bt', 'sel'));
+			self.mktl.addNamed(\start, self.mktl.elAt('bt', 'start'));
+
+		});
 	};
 
 	~ff.mappings = (
 		preset1: (
+			\a: \togglePat0,
+			\b: \togglePat1,
+			\x: \togglePat2,
+			\y: \togglePat3,
+			
+			\lefthat: \nextSoundL,
+			\righthat: \nextSoundR,
+
 			\l1: \openVCAL,
 			\r1: \openVCAR,
-			\l2: \randWeightL,
-			\r2: \randWeightR,
+
+			\l2: \triggerRecL,
+			\r2: \triggerRecR,
+
+			\select: \randWeightL,
+			\start: \randWeightR,
 		)
 	);
 
 	~ff.setupVoices = {|self|
-	
+
 		// Setup voices
 		self.voices = ();
 
@@ -152,7 +290,7 @@ a schizoincestoid game pad instrument
 			thisvoice.source = self.soundProcesses[\sources][\default];
 
 			// Add a few nice basic effects
-			// thisvoice[1] = \filter -> self.sleet.get('chorus');
+			thisvoice[1] = \filter -> self.sleet.get('chorus');
 			thisvoice[2] = \filter -> self.sleet.get('pitchshift');
 			thisvoice[3] = \filter -> self.sleet.get('freqshift');
 			thisvoice[4] = \filter -> self.sleet.get('delay');
@@ -172,7 +310,12 @@ a schizoincestoid game pad instrument
 			thisvoice[103] = \filter -> self.soundProcesses[\leak];
 			thisvoice[105] = \filter -> self.soundProcesses[\limiter];
 
-			thisvoice.set(\pan, 1.rand, \buffer, self.buffer.bufnum);
+			// Set default values
+			thisvoice.set(
+				\pan, 1.rand, 
+				\buffer, self.buffer.bufnum,
+				\record, 0
+			);
 
 			// Finally attach the voice to Influx
 			self.voices[voxname].influx.attachMapped(
@@ -190,7 +333,7 @@ a schizoincestoid game pad instrument
 
 	~ff.soundProcesses = (
 		/*
-			
+
 		Design principles for sound sources:
 
 		- Make them stereo
@@ -199,9 +342,9 @@ a schizoincestoid game pad instrument
 		sources: (
 			default: {|freq=444, detune=1, width=0.5, lfofreq=1, noise=0.5| 
 				var sig = VarSaw.ar(
-					freq: ([freq, freq-detune]*LFSaw.kr(freq/10*noise).linlin(-1.0,1.0,1.0,1.1)).wrap(50,500), 
+					freq: ([freq, freq-detune]*LFSaw.kr(freq/10*noise).linlin(-1.0,1.0,1.0,1.1)).wrap(50,1000), 
 					iphase: 0, 
-					width: width * LFSaw.kr(lfofreq).linlin(-1.0,1.0,0.0,1.0)
+					width: width * LFSaw.kr(lfofreq*10).linlin(-1.0,1.0,0.0,1.0)
 				);
 
 				sig
@@ -224,5 +367,6 @@ a schizoincestoid game pad instrument
 		}
 	);
 
-	~ff.init.value;
+	s.waitForBoot{ ~ff.init.value };
+
 )
