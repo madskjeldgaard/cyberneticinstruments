@@ -2,7 +2,9 @@
 
 ### Easy to use but hard to control instruments and interfaces
 
-Instruments, interfaces and systems that are easy to influencec and perform with but hard to control
+Instruments, interfaces and systems that are easy to influence and perform with but hard to control
+
+These are my own instruments and performance systems, but I share them here for the inspiration of others.
 
 ### Installation
 
